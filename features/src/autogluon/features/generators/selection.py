@@ -1,14 +1,15 @@
 import logging
 
 import numpy as np
-from autogluon.common.features.feature_metadata import FeatureMetadata
 from pandas import DataFrame, Series
+
+from autogluon.common.features.feature_metadata import FeatureMetadata
+from .abstract import AbstractFeatureGenerator
+
 from sklearn.compose import ColumnTransformer
 from sklearn.feature_selection import chi2
 from sklearn.feature_selection import SelectKBest
 from sklearn.preprocessing import OneHotEncoder
-
-from .abstract import AbstractFeatureGenerator
 
 logger = logging.getLogger(__name__)
 
