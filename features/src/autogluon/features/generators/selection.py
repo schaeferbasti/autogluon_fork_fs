@@ -18,10 +18,10 @@ class FeatureSelector(AbstractFeatureGenerator):
 
     def _fit_transform(self, X: DataFrame, y: Series, **kwargs) -> tuple[DataFrame, dict]:
         self._y = y
+
         categorical_columns = X.select_dtypes(include=['object', 'category']).columns.tolist()
         numerical_columns = X.select_dtypes(include=[np.number]).columns.tolist()
         if categorical_columns:
-            # Create preprocessor
             preprocessor = ColumnTransformer(
                 transformers=[
                     ('num', 'passthrough', numerical_columns),
@@ -29,15 +29,10 @@ class FeatureSelector(AbstractFeatureGenerator):
                 ],
                 remainder='passthrough'
             )
-            # Fit on training data and transform both
             X_transformed = preprocessor.fit_transform(X)
-
-            # Get the column names from the transformer
             num_cols = numerical_columns
             cat_cols = preprocessor.named_transformers_['cat'].get_feature_names_out(categorical_columns).tolist()
             all_cols = num_cols + cat_cols
-
-            # Convert back to DataFrame
             X = DataFrame(X_transformed, columns=all_cols, index=X.index)
 
         self._select_best_kwargs = {"score_func": chi2, "k": 1}
