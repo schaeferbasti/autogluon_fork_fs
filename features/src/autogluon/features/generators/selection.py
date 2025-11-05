@@ -1,7 +1,7 @@
 import logging
 
 import numpy as np
-from autogluon.common.features.types import R_INT, R_FLOAT, R_OBJECT
+from autogluon.common.features.types import R_INT, R_FLOAT, R_OBJECT, S_TEXT_SPECIAL
 from pandas import DataFrame, Series
 
 from .abstract import AbstractFeatureGenerator
@@ -19,19 +19,22 @@ class FeatureSelector(AbstractFeatureGenerator):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self._select_best = None
+        self._y = None
 
 
     def _fit_transform(self, X: DataFrame, y: Series, **kwargs) -> tuple[DataFrame, dict]:
         self._y = y
 
-        self._select_best_kwargs = {"score_func": chi2, "k": 1}
+        self._select_best_kwargs = {"score_func": chi2, "k": 3}
         self._select_best = SelectKBest(**self._select_best_kwargs).set_output(transform="pandas")
         X_out = self._transform(X, is_train=True)
 
-        features_to_remove = self.feature_metadata_in.get_features(**self._infer_features_in_args)
-        self.feature_metadata_in = self.feature_metadata_in.keep_features(features_to_remove, inplace=False)
+        selected_features = list(X_out.columns)
+        self.feature_metadata_in.keep_features(selected_features, inplace=True)
+        type_family_groups_special = {}
 
-        return X_out
+        return X_out, type_family_groups_special
 
 
     def _transform(self, X: DataFrame, *, is_train: bool = False) -> DataFrame:
