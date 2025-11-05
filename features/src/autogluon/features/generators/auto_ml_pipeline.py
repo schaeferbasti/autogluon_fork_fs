@@ -10,6 +10,7 @@ from .one_hot_encoder import OneHotEncoderFeatureGenerator
 from .pipeline import PipelineFeatureGenerator
 from .text_ngram import TextNgramFeatureGenerator
 from .text_special import TextSpecialFeatureGenerator
+from .selection import FeatureSelector
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,7 @@ class AutoMLPipelineFeatureGenerator(PipelineFeatureGenerator):
         enable_text_ngram_features=True,
         enable_raw_text_features=False,
         enable_vision_features=True,
+        enable_feature_selection=True,
         vectorizer=None,
         text_ngram_params=None,
         **kwargs,
@@ -110,6 +112,7 @@ class AutoMLPipelineFeatureGenerator(PipelineFeatureGenerator):
         self.enable_text_ngram_features = enable_text_ngram_features
         self.enable_raw_text_features = enable_raw_text_features
         self.enable_vision_features = enable_vision_features
+        self.enable_feature_selection = enable_feature_selection
         self.text_ngram_params = text_ngram_params if text_ngram_params else {}
 
         generators = self._get_default_generators(vectorizer=vectorizer)
@@ -157,9 +160,9 @@ class AutoMLPipelineFeatureGenerator(PipelineFeatureGenerator):
                     )
                 )
             )
-        generators = [generator_group]
-        return generators
-
+        if self.enable_feature_selection:
+            generator_group.append(FeatureSelector())
+        return generator_group
     def _get_category_feature_generator(self):
         return CategoryFeatureGenerator()
 

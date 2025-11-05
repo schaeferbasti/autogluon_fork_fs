@@ -1,9 +1,9 @@
 import logging
 
 import numpy as np
+from autogluon.common.features.types import R_INT, R_FLOAT, R_OBJECT
 from pandas import DataFrame, Series
 
-from autogluon.common.features.feature_metadata import FeatureMetadata
 from .abstract import AbstractFeatureGenerator
 
 from sklearn.compose import ColumnTransformer
@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 
 class FeatureSelector(AbstractFeatureGenerator):
     """FeatureSelectionGenerator selects features from the data."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
 
     def _fit_transform(self, X: DataFrame, y: Series, **kwargs) -> tuple[DataFrame, dict]:
@@ -53,14 +56,7 @@ class FeatureSelector(AbstractFeatureGenerator):
             X = self._select_best.transform(X)
         return X
 
+
     @staticmethod
     def get_default_infer_features_in_args() -> dict:
-        return dict()
-
-    def _more_tags(self):
-        return {"feature_interactions": False}
-
-    def estimate_output_feature_metadata(self, feature_metadata_in: FeatureMetadata) -> FeatureMetadata:
-        features_to_remove = feature_metadata_in.get_features(**self._infer_features_in_args)
-        return feature_metadata_in.keep_features(features_to_remove, inplace=False)
-
+        return dict(valid_raw_types=[R_INT, R_FLOAT, R_OBJECT])
