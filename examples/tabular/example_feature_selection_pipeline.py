@@ -40,7 +40,6 @@ def run_example():
         _feature_generator_kwargs={
             "enable_feature_selection": True,
         },
-        raise_on_no_models_fitted=False
     )
 
     predictor.leaderboard(data=test_data, display=True)
