@@ -1,15 +1,12 @@
 import logging
 
-import numpy as np
-from autogluon.common.features.types import R_INT, R_FLOAT, R_OBJECT, S_TEXT_SPECIAL
+from autogluon.common.features.types import R_INT, R_FLOAT, R_OBJECT
 from pandas import DataFrame, Series
 
 from .abstract import AbstractFeatureGenerator
 
-from sklearn.compose import ColumnTransformer
 from sklearn.feature_selection import chi2
 from sklearn.feature_selection import SelectKBest
-from sklearn.preprocessing import OneHotEncoder
 
 logger = logging.getLogger(__name__)
 
