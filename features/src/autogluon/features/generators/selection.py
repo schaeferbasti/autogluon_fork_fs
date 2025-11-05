@@ -39,21 +39,6 @@ class FeatureSelector(AbstractFeatureGenerator):
 
     def _transform(self, X: DataFrame, *, is_train: bool = False) -> DataFrame:
         if is_train:
-            categorical_columns = X.select_dtypes(include=['object', 'category']).columns.tolist()
-            numerical_columns = X.select_dtypes(include=[np.number]).columns.tolist()
-            if categorical_columns:
-                preprocessor = ColumnTransformer(
-                    transformers=[
-                        ('num', 'passthrough', numerical_columns),
-                        ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_columns)
-                    ],
-                    remainder='passthrough'
-                )
-                X_transformed = preprocessor.fit_transform(X)
-                num_cols = numerical_columns
-                cat_cols = preprocessor.named_transformers_['cat'].get_feature_names_out(categorical_columns).tolist()
-                all_cols = num_cols + cat_cols
-                X = DataFrame(X_transformed, columns=all_cols, index=X.index)
             X = self._select_best.fit_transform(X, self._y)
         else:
             X = self._select_best.transform(X)
