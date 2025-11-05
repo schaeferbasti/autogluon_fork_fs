@@ -160,9 +160,9 @@ class AutoMLPipelineFeatureGenerator(PipelineFeatureGenerator):
                     )
                 )
             )
-        if self.enable_feature_selection:
-            generator_group.append(FeatureSelector())
         generators = [generator_group]
+        if self.enable_feature_selection:
+            generators.append(FeatureSelector())
         return generators
 
     def _get_category_feature_generator(self):
