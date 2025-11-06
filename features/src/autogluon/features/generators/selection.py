@@ -8,11 +8,13 @@ from .abstract import AbstractFeatureGenerator
 from sklearn.feature_selection import chi2
 from sklearn.feature_selection import SelectKBest
 from tabarena.benchmark.feature_selection_methods.ag.select_k_best_chi2.select_k_best_chi2 import Select_k_Best_Chi2
+from tabarena.benchmark.feature_selection_methods.ag.boruta.boruta import Boruta
 
 logger = logging.getLogger(__name__)
 
 FEATURE_SELECTION_METHODS = {
     "Select_k_Best_Chi2": Select_k_Best_Chi2,
+    "Boruta": Boruta
 }
 
 
