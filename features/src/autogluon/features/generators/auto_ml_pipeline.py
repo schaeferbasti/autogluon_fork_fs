@@ -11,7 +11,6 @@ from .pipeline import PipelineFeatureGenerator
 from .text_ngram import TextNgramFeatureGenerator
 from .text_special import TextSpecialFeatureGenerator
 from .selection import FeatureSelector
-
 logger = logging.getLogger(__name__)
 
 
@@ -162,7 +161,7 @@ class AutoMLPipelineFeatureGenerator(PipelineFeatureGenerator):
             )
         generators = [generator_group]
         if self.enable_feature_selection:
-            generators.append(FeatureSelector())
+            generators.append([FeatureSelector(enable_feature_selection=self.enable_feature_selection)])
         return generators
 
     def _get_category_feature_generator(self):
