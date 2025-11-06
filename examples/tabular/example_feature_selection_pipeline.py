@@ -9,6 +9,8 @@ import pandas as pd
 
 from autogluon.tabular import TabularDataset, TabularPredictor
 
+from autogluon.features.generators.selection import FeatureSelectionGenerator
+
 
 class PipelinePosition(str, Enum):
     """Define the positions in the pipeline where custom feature generators can be inserted."""
@@ -38,8 +40,8 @@ def run_example():
         fit_weighted_ensemble=False,
         ag_args_ensemble={"fold_fitting_strategy": "sequential_local"},
         _feature_generator_kwargs={
-            "enable_feature_selection": True,
-        },
+            "post_generators": [FeatureSelectionGenerator()],
+        }
     )
 
     predictor.leaderboard(data=test_data, display=True)

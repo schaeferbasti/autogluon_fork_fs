@@ -18,7 +18,7 @@ FEATURE_SELECTION_METHODS = {
 }
 
 
-class FeatureSelector(AbstractFeatureGenerator):
+class FeatureSelectionGenerator(AbstractFeatureGenerator):
     """FeatureSelectionGenerator selects features from the data."""
 
     def __init__(self, enable_feature_selection=None, **kwargs):
