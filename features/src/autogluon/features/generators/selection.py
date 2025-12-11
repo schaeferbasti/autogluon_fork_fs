@@ -3,22 +3,24 @@ import logging
 from autogluon.common.features.types import R_INT, R_FLOAT, R_OBJECT
 from pandas import DataFrame, Series
 
-from .abstract import AbstractFeatureGenerator
+from .abstract import AbstractFeatureSelector
 
 from sklearn.feature_selection import chi2
 from sklearn.feature_selection import SelectKBest
 from tabarena.benchmark.feature_selection_methods.ag.select_k_best_chi2.select_k_best_chi2 import Select_k_Best_Chi2
 from tabarena.benchmark.feature_selection_methods.ag.boruta.boruta import Boruta
+from tabarena.benchmark.feature_selection_methods.ag.metafs.MetaFS import MetaFS
 
 logger = logging.getLogger(__name__)
 
 FEATURE_SELECTION_METHODS = {
     "Select_k_Best_Chi2": Select_k_Best_Chi2,
-    "Boruta": Boruta
+    "Boruta": Boruta,
+    "MetaFS": MetaFS
 }
 
 
-class FeatureSelectionGenerator(AbstractFeatureGenerator):
+class FeatureSelectionGenerator(AbstractFeatureSelector):
     """FeatureSelectionGenerator selects features from the data."""
 
     def __init__(self, enable_feature_selection=None, **kwargs):

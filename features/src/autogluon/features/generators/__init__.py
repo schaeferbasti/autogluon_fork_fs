@@ -1,4 +1,5 @@
 from .abstract import AbstractFeatureGenerator
+from .abstract import AbstractFeatureSelector
 from .astype import AsTypeFeatureGenerator
 from .auto_ml_pipeline import AutoMLInterpretablePipelineFeatureGenerator, AutoMLPipelineFeatureGenerator
 from .binned import BinnedFeatureGenerator
