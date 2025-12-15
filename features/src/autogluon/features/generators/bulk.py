@@ -6,7 +6,7 @@ from pandas import DataFrame
 
 from autogluon.common.features.feature_metadata import FeatureMetadata
 
-from .abstract import AbstractFeatureGenerator
+from .abstract import AbstractFeatureGenerator, AbstractFeatureSelector
 
 logger = logging.getLogger(__name__)
 
@@ -85,10 +85,10 @@ class BulkFeatureGenerator(AbstractFeatureGenerator):
     """
 
     def __init__(
-        self,
-        generators: List[List[AbstractFeatureGenerator]],
-        pre_generators: List[AbstractFeatureGenerator] = None,
-        **kwargs,
+            self,
+            generators: List[List[AbstractFeatureGenerator]],
+            pre_generators: List[AbstractFeatureGenerator] = None,
+            **kwargs,
     ):
         super().__init__(**kwargs)
         if not isinstance(generators, list):
@@ -260,6 +260,268 @@ class BulkFeatureGenerator(AbstractFeatureGenerator):
                 if self.generators[stage - 2]:
                     features_in = FeatureMetadata.join_metadatas(
                         [generator.feature_metadata for generator in self.generators[stage - 2]],
+                        shared_raw_features="error",
+                    ).get_features()
+                else:
+                    features_in = []
+            else:
+                features_in = self.features_in
+            features_in_list.append(features_in)
+        return self._get_unused_features_generic(
+            feature_links_chain=feature_links_chain, features_in_list=features_in_list
+        )
+
+    @staticmethod
+    def get_default_infer_features_in_args() -> dict:
+        return dict()
+
+
+class BulkFeatureSelector(AbstractFeatureSelector):
+    """
+    BulkFeatureSelector is used for complex feature generation pipelines where multiple selectors are required,
+    with some selectors requiring the output of other selectors as input (multi-stage generation).
+    For ML problems, it is expected that the user uses a feature selector that is an instance of or is inheriting from BulkFeatureSelector,
+    as single feature selectors typically will not satisfy the feature generation needs of all input data types.
+    Unless you are an expert user, we recommend you create custom FeatureSelectors based off of PipelineFeatureSelector instead of BulkFeatureSelector.
+
+    Parameters
+    ----------
+    selectors : List[List[:class:`AbstractFeatureSelector`]]
+        selectors is a list of selector groups, where a selector group is a list of selectors.
+        Feature selectors within selectors[i] (selector group) are all fit on the same data,
+        and their outputs are then concatenated to form the output of selectors[i].
+        selectors[i+1] are then fit on the output of selectors[i].
+        The last selector group's output is the output of _fit_transform and _transform methods.
+        Due to the flexibility of selectors, at the time of initialization, selectors will prepend pre_selectors and append post_selectors
+        if they are not None.
+            If pre/post selectors are specified, the supplied selectors will be extended like this:
+                pre_selectors = [[pre_selector] for pre_selector in pre_selectors]
+                post_selectors = [[post_selector] for post_selector in self._post_selectors]
+                self.selectors: List[List[AbstractFeatureSelector]] = pre_selectors + selectors + post_selectors
+                self._post_selectors = []
+            This means that self._post_selectors will be empty as post_selectors will be incorporated into self.selectors instead.
+        Note that if selectors within a selector group produce a feature with the same name, an AssertionError will be raised as features
+        with the same name cannot be present within a valid DataFrame output.
+            If both features are desired, specify a name_prefix parameter in one of the selectors to prevent name collisions.
+            If experimenting with different selector groups, it is encouraged to try fitting your experimental
+            feature-selectors to the data without any ML model training to ensure validity and avoid name collisions.
+    pre_selectors: List[AbstractFeatureSelector], optional
+        pre_selectors are selectors which are sequentially fit prior to selectors.
+        Functions identically to post_selectors argument, but pre_selectors are called before selectors, while post_selectors are called after selectors.
+        Provided for convenience to classes inheriting from BulkFeatureSelector.
+        Common pre_selector's include :class:`AsTypeFeatureGenerator` and :class:`FillNaFeatureGenerator`, which act to prune and clean the data instead
+        of generating entirely new features.
+    **kwargs :
+        Refer to :class:`AbstractFeatureSelector` documentation for details on valid key word arguments.
+
+    Examples
+    --------
+    >>> from autogluon.tabular import TabularDataset
+    >>> from autogluon.features.selectors import AsTypeFeatureGenerator, BulkFeatureSelector, CategoryFeatureGenerator, DropDuplicatesFeatureGenerator, FillNaFeatureGenerator, IdentityFeatureGenerator  # noqa
+    >>> from autogluon.common.features.types import R_INT, R_FLOAT
+    >>>
+    >>> selectors = [
+    >>>     [AsTypeFeatureSelector()],  # Convert all input features to the exact same types as they were during fit.
+    >>>     [FillNaFeatureGenerator()],  # Fill all NA values in the data
+    >>>     [
+    >>>         CategoryFeatureGenerator(),  # Convert object types to category types and minimize their memory usage
+    >>>         # Carry over all features that are not objects and categories (without this, the int features would be dropped).
+    >>>         IdentityFeatureGenerator(infer_features_in_args=dict(valid_raw_types=[R_INT, R_FLOAT])),
+    >>>     ],
+    >>>     # CategoryFeatureGenerator and IdentityFeatureGenerator will have their outputs concatenated together
+    >>>     # before being fed into DropDuplicatesFeatureGenerator
+    >>>     [DropDuplicatesFeatureGenerator()]  # Drops any features which are duplicates of each-other
+    >>> ]
+    >>> feature_selector = BulkFeatureSelector(selectors=selectors, verbosity=3)
+    >>>
+    >>> label = 'class'
+    >>> train_data = TabularDataset('https://autogluon.s3.amazonaws.com/datasets/Inc/train.csv')
+    >>> X_train = train_data.drop(labels=[label], axis=1)
+    >>> y_train = train_data[label]
+    >>>
+    >>> X_train_transformed = feature_selector.fit_transform(X=X_train, y=y_train)
+    >>>
+    >>> test_data = TabularDataset('https://autogluon.s3.amazonaws.com/datasets/Inc/test.csv')
+    >>>
+    >>> X_test_transformed = feature_selector.transform(test_data)
+    """
+
+    def __init__(
+            self,
+            selectors: List[List[AbstractFeatureSelector]],
+            pre_selectors: List[AbstractFeatureSelector] = None,
+            **kwargs,
+    ):
+        super().__init__(**kwargs)
+        if not isinstance(selectors, list):
+            selectors = [[selectors]]
+        elif len(selectors) == 0:
+            raise AssertionError("selectors must contain at least one AbstractFeatureSelector.")
+        selectors = [
+            selector_group if isinstance(selector_group, list) else [selector_group]
+            for selector_group in selectors
+        ]
+        if pre_selectors is None:
+            pre_selectors = []
+        elif not isinstance(pre_selectors, list):
+            pre_selectors = [pre_selectors]
+        if self.pre_enforce_types:
+            from .astype import AsTypeFeatureSelector
+
+            pre_selectors = [AsTypeFeatureSelector()] + pre_selectors
+            self.pre_enforce_types = False
+        pre_selectors = [[pre_selector] for pre_selector in pre_selectors]
+
+        if self._post_selectors is not None:
+            post_selectors = [[post_selector] for post_selector in self._post_selectors]
+            self._post_selectors = []
+        else:
+            post_selectors = []
+        self.selectors: List[List[AbstractFeatureSelector]] = pre_selectors + selectors + post_selectors
+
+        for selector_group in self.selectors:
+            for selector in selector_group:
+                if not isinstance(selector, (AbstractFeatureSelector, AbstractFeatureGenerator)):
+                    raise AssertionError(
+                        f"selectors contains an object which is not an instance of AbstractFeatureSelector. Invalid selector: {selector}"
+                    )
+
+        # FeatureMetadata object based on the original input features that were unused by any feature selector.
+        self._feature_metadata_in_unused: FeatureMetadata = None
+
+    def _fit_transform(self, X: DataFrame, **kwargs) -> (DataFrame, dict):
+        feature_metadata = self.feature_metadata_in
+        for i in range(len(self.selectors)):
+            self._log(20, f"\tStage {i + 1} Selectors:")
+            feature_df_list = []
+            selector_group_valid = []
+            for selector in self.selectors[i]:
+                if selector.is_valid_metadata_in(feature_metadata):
+                    if selector.verbosity > self.verbosity:
+                        selector.verbosity = self.verbosity
+                    selector.set_log_prefix(log_prefix=self.log_prefix + "\t\t", prepend=True)
+                    feature_df_list.append(selector.fit_transform(X, feature_metadata_in=feature_metadata, **kwargs))
+                    selector_group_valid.append(selector)
+                else:
+                    self._log(
+                        15, f"\t\tSkipping {selector.__class__.__name__}: No input feature with required dtypes."
+                    )
+
+            self.selectors[i] = selector_group_valid
+
+            self.selectors[i] = [
+                selector
+                for j, selector in enumerate(self.selectors[i])
+                if feature_df_list[j] is not None and len(feature_df_list[j].columns) > 0
+            ]
+            feature_df_list = [
+                feature_df for feature_df in feature_df_list if feature_df is not None and len(feature_df.columns) > 0
+            ]
+
+            if self.selectors[i]:
+                # Raise an exception if selectors expect different raw input types for the same feature.
+                FeatureMetadata.join_metadatas(
+                    [selector.feature_metadata_in for selector in self.selectors[i]],
+                    shared_raw_features="error_if_diff",
+                )
+
+            if self.selectors[i]:
+                feature_metadata = FeatureMetadata.join_metadatas(
+                    [selector.feature_metadata for selector in self.selectors[i]], shared_raw_features="error"
+                )
+            else:
+                feature_metadata = FeatureMetadata(type_map_raw=dict())
+
+            if not feature_df_list:
+                X = DataFrame(index=X.index)
+            elif len(feature_df_list) == 1:
+                X = feature_df_list[0]
+            else:
+                X = pd.concat(feature_df_list, axis=1, ignore_index=False, copy=False)
+
+        self._remove_features_out(features=[])
+        # Remove useless selectors
+        # TODO: consider moving to self._remove_features_out
+        for i in range(len(self.selectors)):
+            selector_group_valid = []
+            for j in range(len(self.selectors[i])):
+                if self.selectors[i][j].features_out:
+                    selector_group_valid.append(self.selectors[i][j])
+            self.selectors[i] = selector_group_valid
+
+        return X, feature_metadata.type_group_map_special
+
+    def _transform(self, X: DataFrame) -> DataFrame:
+        for selector_group in self.selectors:
+            feature_df_list = []
+            for selector in selector_group:
+                feature_df_list.append(selector.transform(X))
+
+            if not feature_df_list:
+                X = DataFrame(index=X.index)
+            elif len(feature_df_list) == 1:
+                X = feature_df_list[0]
+            else:
+                X = pd.concat(feature_df_list, axis=1, ignore_index=False, copy=False)
+        X_out = X
+
+        return X_out
+
+    def get_feature_links_chain(self):
+        feature_links_chain = []
+        for i in range(len(self.selectors)):
+            feature_links_group = {}
+            for selector in self.selectors[i]:
+                feature_links = selector.get_feature_links()
+                for feature_in, features_out in feature_links.items():
+                    if feature_in in feature_links_group:
+                        feature_links_group[feature_in] += features_out
+                    else:
+                        feature_links_group[feature_in] = features_out
+            feature_links_chain.append(feature_links_group)
+        return feature_links_chain
+
+    def _remove_unused_features(self, feature_links_chain):
+        unused_features_by_stage = self._get_unused_features(feature_links_chain)
+        if unused_features_by_stage:
+            unused_features_in = [
+                feature
+                for feature in self.feature_metadata_in.get_features()
+                if feature in unused_features_by_stage[0]
+            ]
+            feature_metadata_in_unused = self.feature_metadata_in.keep_features(features=unused_features_in)
+            if self._feature_metadata_in_unused:
+                self._feature_metadata_in_unused = self._feature_metadata_in_unused.join_metadata(
+                    feature_metadata_in_unused
+                )
+            else:
+                self._feature_metadata_in_unused = feature_metadata_in_unused
+            self._remove_features_in(features=unused_features_in)
+
+        for i, selector_group in enumerate(self.selectors):
+            unused_features_in_stage = unused_features_by_stage[i]
+            unused_features_out_stage = [
+                feature_links_chain[i][feature_in]
+                for feature_in in unused_features_in_stage
+                if feature_in in feature_links_chain[i]
+            ]
+            unused_features_out_stage = list(
+                set([feature for sublist in unused_features_out_stage for feature in sublist])
+            )
+            for selector in selector_group:
+                unused_features_out_selector = [
+                    feature for feature in selector.features_out if feature in unused_features_out_stage
+                ]
+                selector._remove_features_out(features=unused_features_out_selector)
+
+    def _get_unused_features(self, feature_links_chain):
+        features_in_list = []
+        for i in range(len(self.selectors)):
+            stage = i + 1
+            if stage > 1:
+                if self.selectors[stage - 2]:
+                    features_in = FeatureMetadata.join_metadatas(
+                        [selector.feature_metadata for selector in self.selectors[stage - 2]],
                         shared_raw_features="error",
                     ).get_features()
                 else:

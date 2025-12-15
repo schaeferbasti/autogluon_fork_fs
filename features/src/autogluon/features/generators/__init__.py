@@ -1,9 +1,8 @@
-from .abstract import AbstractFeatureGenerator
-from .abstract import AbstractFeatureSelector
-from .astype import AsTypeFeatureGenerator
-from .auto_ml_pipeline import AutoMLInterpretablePipelineFeatureGenerator, AutoMLPipelineFeatureGenerator
+from .abstract import AbstractFeatureGenerator, AbstractFeatureSelector
+from .astype import AsTypeFeatureGenerator, AsTypeFeatureSelector
+from .auto_ml_pipeline import AutoMLInterpretablePipelineFeatureGenerator, AutoMLPipelineFeatureGenerator, AutoMLInterpretablePipelineFeatureSelector, AutoMLPipelineFeatureSelector
 from .binned import BinnedFeatureGenerator
-from .bulk import BulkFeatureGenerator
+from .bulk import BulkFeatureGenerator, BulkFeatureSelector
 from .category import CategoryFeatureGenerator
 from .datetime import DatetimeFeatureGenerator
 from .drop_duplicates import DropDuplicatesFeatureGenerator
@@ -19,4 +18,3 @@ from .pipeline import PipelineFeatureGenerator
 from .rename import RenameFeatureGenerator
 from .text_ngram import TextNgramFeatureGenerator
 from .text_special import TextSpecialFeatureGenerator
-from .selection import FeatureSelectionGenerator
