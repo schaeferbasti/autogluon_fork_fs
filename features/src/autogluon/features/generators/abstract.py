@@ -975,9 +975,11 @@ class AbstractFeatureSelector:
             problem_type: str | None = None,
             name: str | None = None,
             path: str | None = None,
+            time_limit: float = 0.2,
             log_prefix="",
             verbosity=2,
     ):
+        self.time_limit = time_limit
         self.features = None
         self.params = {}
         self.params_aux = {}
@@ -1098,6 +1100,7 @@ class AbstractFeatureSelector:
             self, X: DataFrame,
             y: Series = None,
             feature_metadata_in: FeatureMetadata = None,
+            time_limit: float = 0.2,
             log_resources: bool = False,
             log_resources_prefix: str | None = None,
             **kwargs
@@ -1130,82 +1133,99 @@ class AbstractFeatureSelector:
         X_out : DataFrame object which is the transformed version of the input data X.
 
         """
-        start_time = time.time()
-        kwargs = self.initialize(**kwargs)
-        kwargs["X"] = X
-        self._register_fit_metadata(**kwargs)
-        self.validate_fit_resources(**kwargs)
-        approx_mem_size_req, available_mem = self._validate_fit_memory_usage(**kwargs)
-        if "time_limit" in kwargs and kwargs["time_limit"] is not None:
-            time_start_fit = time.time()
-            kwargs["time_limit"] -= time_start_fit - start_time
-            if kwargs["time_limit"] <= 0:
-                logger.warning(
-                    f'\tWarning: Model has no time left to train, skipping model... (Time Left = {kwargs["time_limit"]:.1f}s)')
-                raise TimeLimitExceeded
-        self.validate_fit_args(**kwargs)
-        if log_resources:
-            num_cpus = kwargs.get("num_cpus", None)
-            num_gpus = kwargs.get("num_gpus", None)
-            approx_mem_size_req_gb = approx_mem_size_req / (1024 ** 3) if approx_mem_size_req is not None else None
-            available_mem_gb = available_mem / (1024 ** 3) if available_mem is not None else None
-            if log_resources_prefix is None:
-                log_resources_prefix = ""
-            msg = f"\t{log_resources_prefix}Fitting with cpus={num_cpus}, gpus={num_gpus}"
-            if approx_mem_size_req_gb is not None and available_mem_gb is not None:
-                msg_mem = f", mem={approx_mem_size_req_gb:.1f}/{available_mem_gb:.1f} GB"
-                msg += msg_mem
-            logger.log(20, msg)
+        try:
+            start_time = time.time()
+            kwargs = self.initialize(time_limit=time_limit, **kwargs)
+            kwargs["X"] = X
+            kwargs["start_time"] = start_time
+            self._register_fit_metadata(**kwargs)
+            self.validate_fit_resources(**kwargs)
+            approx_mem_size_req, available_mem = self._validate_fit_memory_usage(**kwargs)
+            if "time_limit" in kwargs and kwargs["time_limit"] is not None:
+                print("Time limit: " + str(kwargs["time_limit"]) + " seconds")
+                time_start_fit = time.time()
+                kwargs["time_limit"] -= time_start_fit - start_time
+                if kwargs["time_limit"] <= 0:
+                    logger.warning(
+                        f'\tWarning: FeatureSelection Method has no time left to train, model... (Time Left = {kwargs["time_limit"]:.1f}s)')
+                    raise TimeLimitExceeded
+            self.validate_fit_args(**kwargs)
+            if log_resources:
+                num_cpus = kwargs.get("num_cpus", None)
+                num_gpus = kwargs.get("num_gpus", None)
+                approx_mem_size_req_gb = approx_mem_size_req / (1024 ** 3) if approx_mem_size_req is not None else None
+                print("Approx. Required Memory in GB: " + str(approx_mem_size_req_gb))
+                available_mem_gb = available_mem / (1024 ** 3) if available_mem is not None else None
+                print("Available Memory in GB: " + str(available_mem_gb))
 
-        self._log(20, f"Fitting {self.__class__.__name__}...")
-        if self._is_fit:
-            raise AssertionError(f"{self.__class__.__name__} is already fit.")
-        kwargs.pop("X", None)
-        self._pre_fit_validate(X=X, y=y, feature_metadata_in=feature_metadata_in, **kwargs)
+                if log_resources_prefix is None:
+                    log_resources_prefix = ""
+                msg = f"\t{log_resources_prefix}Fitting with cpus={num_cpus}, gpus={num_gpus}"
+                if approx_mem_size_req_gb is not None and available_mem_gb is not None:
+                    msg_mem = f", mem={approx_mem_size_req_gb:.1f}/{available_mem_gb:.1f} GB"
+                    msg += msg_mem
+                logger.log(20, msg)
 
-        if self.reset_index:
-            X_index = copy.deepcopy(X.index)
-            # TODO: Theoretically inplace=True avoids data copy, but can lead to altering of original DataFrame outside of method context.
-            X = X.reset_index(drop=True)
-            if y is not None and isinstance(y, Series):
-                y = y.reset_index(drop=True)  # TODO: this assumes y and X had matching indices prior
-        else:
-            X_index = None
-        if self.column_names_as_str:
-            columns_orig = list(X.columns)
-            X.columns = X.columns.astype(str)  # Ensure all column names are strings
-            columns_new = list(X.columns)
-            if columns_orig != columns_new:
-                rename_map = {orig: new for orig, new in zip(columns_orig, columns_new)}
-                if feature_metadata_in is not None:
-                    feature_metadata_in.rename_features(rename_map=rename_map)
-                self._rename_features_in(rename_map)
+            self._log(20, f"Fitting {self.__class__.__name__}...")
+            if self._is_fit:
+                raise AssertionError(f"{self.__class__.__name__} is already fit.")
+            kwargs.pop("X", None)
+            self._pre_fit_validate(X=X, y=y, feature_metadata_in=feature_metadata_in, **kwargs)
+
+            if self.reset_index:
+                X_index = copy.deepcopy(X.index)
+                # TODO: Theoretically inplace=True avoids data copy, but can lead to altering of original DataFrame outside of method context.
+                X = X.reset_index(drop=True)
+                if y is not None and isinstance(y, Series):
+                    y = y.reset_index(drop=True)  # TODO: this assumes y and X had matching indices prior
             else:
-                self.column_names_as_str = False  # Columns were already string, so don't do conversion. Better to error if they change types at inference.
-        self._ensure_no_duplicate_column_names(X=X)
-        self._infer_features_in_full(X=X, feature_metadata_in=feature_metadata_in)
-        if self.pre_drop_useless:
-            self._useless_features_in = self._get_useless_features(X, columns_to_check=self.features_in)
-            if self._useless_features_in:
-                self._remove_features_in(self._useless_features_in)
-        if self.pre_enforce_types:
-            from .astype import AsTypeFeatureSelector
+                X_index = None
+            if self.column_names_as_str:
+                columns_orig = list(X.columns)
+                X.columns = X.columns.astype(str)  # Ensure all column names are strings
+                columns_new = list(X.columns)
+                if columns_orig != columns_new:
+                    rename_map = {orig: new for orig, new in zip(columns_orig, columns_new)}
+                    if feature_metadata_in is not None:
+                        feature_metadata_in.rename_features(rename_map=rename_map)
+                    self._rename_features_in(rename_map)
+                else:
+                    self.column_names_as_str = False  # Columns were already string, so don't do conversion. Better to error if they change types at inference.
+            self._ensure_no_duplicate_column_names(X=X)
+            self._infer_features_in_full(X=X, feature_metadata_in=feature_metadata_in)
+            if self.pre_drop_useless:
+                self._useless_features_in = self._get_useless_features(X, columns_to_check=self.features_in)
+                if self._useless_features_in:
+                    self._remove_features_in(self._useless_features_in)
+            if self.pre_enforce_types:
+                from .astype import AsTypeFeatureSelector
 
-            self._pre_astype_selector = AsTypeFeatureSelector(
-                features_in=self.features_in,
-                feature_metadata_in=self.feature_metadata_in,
-                log_prefix=self.log_prefix + "\t",
+                self._pre_astype_selector = AsTypeFeatureSelector(
+                    features_in=self.features_in,
+                    feature_metadata_in=self.feature_metadata_in,
+                    log_prefix=self.log_prefix + "\t",
+                )
+                self._pre_astype_selector.fit(X)
+
+            # TODO: Add option to return feature_metadata instead to avoid data copy
+            #  If so, consider adding validation step to check that X_out matches the feature metadata, error/warning if not
+            X_out, type_family_groups_special = self._fit_transform(X[self.features_in], y=y, **kwargs)
+
+            type_map_raw = get_type_map_raw(X_out)
+            self._feature_metadata_before_post = FeatureMetadata(
+                type_map_raw=type_map_raw, type_group_map_special=type_family_groups_special
             )
-            self._pre_astype_selector.fit(X)
+        except TimeLimitExceeded:
+            X_out = X
 
-        # TODO: Add option to return feature_metadata instead to avoid data copy
-        #  If so, consider adding validation step to check that X_out matches the feature metadata, error/warning if not
-        X_out, type_family_groups_special = self._fit_transform(X[self.features_in], y=y, **kwargs)
-
-        type_map_raw = get_type_map_raw(X_out)
-        self._feature_metadata_before_post = FeatureMetadata(
-            type_map_raw=type_map_raw, type_group_map_special=type_family_groups_special
-        )
+        if self.feature_metadata_in is not None:
+            self._feature_metadata_before_post = copy.deepcopy(self.feature_metadata_in)
+            self.feature_metadata = copy.deepcopy(self.feature_metadata_in)  # ← Add this
+        else:
+            type_map_raw = get_type_map_raw(X_out)
+            metadata = FeatureMetadata(type_map_raw=type_map_raw)
+            self._feature_metadata_before_post = metadata
+            self.feature_metadata = metadata
         if self._post_selectors:
             X_out, self.feature_metadata, self._post_selectors = self._fit_selectors(
                 X=X_out,
