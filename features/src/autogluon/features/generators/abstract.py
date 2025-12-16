@@ -975,7 +975,7 @@ class AbstractFeatureSelector:
             problem_type: str | None = None,
             name: str | None = None,
             path: str | None = None,
-            time_limit: float = 0.2,
+            time_limit: float = 300,
             log_prefix="",
             verbosity=2,
     ):
@@ -1080,7 +1080,7 @@ class AbstractFeatureSelector:
         path = path_context
         return path
 
-    def fit(self, X: DataFrame, **kwargs):
+    def fit(self, X: DataFrame, n_features: int = None, **kwargs):
         """
         Fit selector to the provided data.
         Because of how the selectors track output features and types, it is generally required that the data be transformed during fit, so the fit
@@ -1094,13 +1094,14 @@ class AbstractFeatureSelector:
             Any additional arguments that a particular selector implementation could use.
             See fit_transform method for common kwargs values.
         """
-        self.fit_transform(X, **kwargs)
+        self.fit_transform(X, n_features, **kwargs)
 
     def fit_transform(
             self, X: DataFrame,
             y: Series = None,
+            n_features: int = None,
+            time_limit: float = 300,
             feature_metadata_in: FeatureMetadata = None,
-            time_limit: float = 0.2,
             log_resources: bool = False,
             log_resources_prefix: str | None = None,
             **kwargs
@@ -1142,7 +1143,6 @@ class AbstractFeatureSelector:
             self.validate_fit_resources(**kwargs)
             approx_mem_size_req, available_mem = self._validate_fit_memory_usage(**kwargs)
             if "time_limit" in kwargs and kwargs["time_limit"] is not None:
-                print("Time limit: " + str(kwargs["time_limit"]) + " seconds")
                 time_start_fit = time.time()
                 kwargs["time_limit"] -= time_start_fit - start_time
                 if kwargs["time_limit"] <= 0:
@@ -1209,27 +1209,34 @@ class AbstractFeatureSelector:
 
             # TODO: Add option to return feature_metadata instead to avoid data copy
             #  If so, consider adding validation step to check that X_out matches the feature metadata, error/warning if not
-            X_out, type_family_groups_special = self._fit_transform(X[self.features_in], y=y, **kwargs)
-
-            type_map_raw = get_type_map_raw(X_out)
-            self._feature_metadata_before_post = FeatureMetadata(
-                type_map_raw=type_map_raw, type_group_map_special=type_family_groups_special
-            )
+            X_out, type_family_groups_special = self._fit_transform(X[self.features_in], y=y, n_features=n_features, **kwargs)
         except TimeLimitExceeded:
-            X_out = X
+            if n_features is None:
+                X_out = X
+                type_family_groups_special = {}
+            else:
+                X_out = X.sample(n=n_features, axis=1, random_state=1)
+                type_family_groups_special = {}
+            if self.feature_metadata_in is not None:
+                self._feature_metadata_before_post = copy.deepcopy(self.feature_metadata_in)
+                self.feature_metadata = copy.deepcopy(self.feature_metadata_in)
+                self.features_in = list(X_out.columns)
+            else:
+                type_map_raw = get_type_map_raw(X_out)
+                metadata = FeatureMetadata(type_map_raw=type_map_raw)
+                self._feature_metadata_before_post = metadata
+                self.feature_metadata = metadata
+                self.features_in = list(X_out.columns)
 
-        if self.feature_metadata_in is not None:
-            self._feature_metadata_before_post = copy.deepcopy(self.feature_metadata_in)
-            self.feature_metadata = copy.deepcopy(self.feature_metadata_in)  # ← Add this
-        else:
-            type_map_raw = get_type_map_raw(X_out)
-            metadata = FeatureMetadata(type_map_raw=type_map_raw)
-            self._feature_metadata_before_post = metadata
-            self.feature_metadata = metadata
+        type_map_raw = get_type_map_raw(X_out)
+        self._feature_metadata_before_post = FeatureMetadata(
+            type_map_raw=type_map_raw, type_group_map_special=type_family_groups_special
+        )
         if self._post_selectors:
             X_out, self.feature_metadata, self._post_selectors = self._fit_selectors(
                 X=X_out,
                 y=y,
+                n_features=n_features,
                 feature_metadata=self._feature_metadata_before_post,
                 selectors=self._post_selectors,
                 **kwargs,
@@ -1306,7 +1313,7 @@ class AbstractFeatureSelector:
             X_out.index = X_index
         return X_out
 
-    def _fit_transform(self, X: DataFrame, y: Series, **kwargs) -> (DataFrame, dict):
+    def _fit_transform(self, X: DataFrame, y: Series, n_features: int, **kwargs) -> (DataFrame, dict):
         """
         Performs the inner fit_transform logic that is non-generic (specific to the selector implementation).
         When creating a new selector class, this should be implemented.
@@ -1439,7 +1446,7 @@ class AbstractFeatureSelector:
         raise NotImplementedError
 
     def _fit_selectors(
-            self, X, y, feature_metadata, selectors: list, **kwargs
+            self, X, y, n_features, feature_metadata, selectors: list, **kwargs
     ) -> (DataFrame, FeatureMetadata, list):
         """
         Fit a list of AbstractFeatureSelector objects in sequence, with the output of selectors[i] fed as the input to selectors[i+1]
@@ -1449,7 +1456,7 @@ class AbstractFeatureSelector:
         for selector in selectors:
             selector.verbosity = min(self.verbosity, selector.verbosity)
             selector.set_log_prefix(log_prefix=self.log_prefix + "\t", prepend=True)
-            X = selector.fit_transform(X=X, y=y, feature_metadata_in=feature_metadata, **kwargs)
+            X = selector.fit_transform(X=X, y=y, n_features=n_features, feature_metadata_in=feature_metadata, **kwargs)
             feature_metadata = selector.feature_metadata
         return X, feature_metadata, selectors
 

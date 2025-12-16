@@ -248,21 +248,18 @@ class PipelineFeatureSelector(BulkFeatureSelector):
         self.post_memory_usage = None
         self.post_memory_usage_per_row = None
 
-    def fit_transform(self, X: DataFrame, y=None, feature_metadata_in: FeatureMetadata = None, **kwargs) -> DataFrame:
-        X_out = super().fit_transform(X=X, y=y, feature_metadata_in=feature_metadata_in, **kwargs)
+    def fit_transform(self, X: DataFrame, y = None, n_features: int = None, feature_metadata_in: FeatureMetadata = None, **kwargs) -> DataFrame:
+        X_out = super().fit_transform(X=X, y=y, n_features=n_features, feature_metadata_in=feature_metadata_in, **kwargs)
         self._compute_post_memory_usage(X_out)
         # TODO: Consider adding final check of validity/that features are reasonable.
-
         return X_out
 
-    def _fit_transform(self, X: DataFrame, y=None, **kwargs):
-        X_out, type_group_map_special = super()._fit_transform(X=X, y=y, **kwargs)
-        X_out, type_group_map_special = self._fit_transform_custom(
-            X_out=X_out, type_group_map_special=type_group_map_special, y=y
-        )
+    def _fit_transform(self, X: DataFrame, y=None, n_features: int = None, **kwargs):
+        X_out, type_group_map_special = super()._fit_transform(X=X, y=y, n_features=n_features, **kwargs)
+        X_out, type_group_map_special = self._fit_transform_custom(X_out=X_out, n_features=n_features, type_group_map_special=type_group_map_special, y=y)
         return X_out, type_group_map_special
 
-    def _fit_transform_custom(self, X_out: DataFrame, type_group_map_special: dict, y=None) -> (DataFrame, dict):
+    def _fit_transform_custom(self, X_out: DataFrame, n_features: int, type_group_map_special: dict, y=None) -> (DataFrame, dict):
         if len(list(X_out.columns)) == 0:
             self._is_dummy = True
             self._log(
