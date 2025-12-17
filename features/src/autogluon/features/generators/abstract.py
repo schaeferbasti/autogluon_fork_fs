@@ -1102,7 +1102,7 @@ class AbstractFeatureSelector:
             n_features: int = None,
             time_limit: float = 300,
             feature_metadata_in: FeatureMetadata = None,
-            log_resources: bool = False,
+            log_resources: bool = True,
             log_resources_prefix: str | None = None,
             **kwargs
     ) -> DataFrame:
@@ -1210,12 +1210,13 @@ class AbstractFeatureSelector:
             # TODO: Add option to return feature_metadata instead to avoid data copy
             #  If so, consider adding validation step to check that X_out matches the feature metadata, error/warning if not
             X_out, type_family_groups_special = self._fit_transform(X[self.features_in], y=y, n_features=n_features, **kwargs)
+
         except TimeLimitExceeded:
             if n_features is None:
                 X_out = X
                 type_family_groups_special = {}
             else:
-                X_out = X.sample(n=n_features, axis=1, random_state=1)
+                X_out = X.sample(n=n_features, axis=1)
                 type_family_groups_special = {}
             if self.feature_metadata_in is not None:
                 self._feature_metadata_before_post = copy.deepcopy(self.feature_metadata_in)
