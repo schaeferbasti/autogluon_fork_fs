@@ -21,7 +21,7 @@ from autogluon.common.utils.utils import setup_outputdir
 from autogluon.core.constants import AG_ARGS_FIT, AG_ARG_PREFIX
 from autogluon.core.data import LabelCleaner
 from autogluon.core.utils import infer_problem_type
-from autogluon.core.utils.exceptions import NotEnoughMemoryError, TimeLimitExceeded
+from autogluon.core.utils.exceptions import NotEnoughMemoryError, TimeLimitExceeded, NumberOfFeaturesError
 from pandas import DataFrame, Series
 
 from autogluon.common.features.feature_metadata import FeatureMetadata
@@ -1080,7 +1080,7 @@ class AbstractFeatureSelector:
         path = path_context
         return path
 
-    def fit(self, X: DataFrame, n_features: int = None, **kwargs):
+    def fit(self, X: DataFrame, n_max_features: int = None, **kwargs):
         """
         Fit selector to the provided data.
         Because of how the selectors track output features and types, it is generally required that the data be transformed during fit, so the fit
@@ -1094,12 +1094,12 @@ class AbstractFeatureSelector:
             Any additional arguments that a particular selector implementation could use.
             See fit_transform method for common kwargs values.
         """
-        self.fit_transform(X, n_features, **kwargs)
+        self.fit_transform(X, n_max_features, **kwargs)
 
     def fit_transform(
             self, X: DataFrame,
             y: Series = None,
-            n_features: int = None,
+            n_max_features: int = None,
             time_limit: float = 300,
             feature_metadata_in: FeatureMetadata = None,
             log_resources: bool = True,
@@ -1207,16 +1207,15 @@ class AbstractFeatureSelector:
                 )
                 self._pre_astype_selector.fit(X)
 
-            # TODO: Add option to return feature_metadata instead to avoid data copy
-            #  If so, consider adding validation step to check that X_out matches the feature metadata, error/warning if not
-            X_out, type_family_groups_special = self._fit_transform(X[self.features_in], y=y, n_features=n_features, **kwargs)
-
+            self.features_in = list(X.columns)
+            X_out, type_family_groups_special = self._fit_transform(X=X[self.features_in], y=y,
+                                                                    n_max_features=n_max_features, **kwargs)
         except TimeLimitExceeded:
-            if n_features is None:
+            if n_max_features is None:
                 X_out = X
                 type_family_groups_special = {}
             else:
-                X_out = X.sample(n=n_features, axis=1)
+                X_out = X.sample(n=n_max_features, axis=1)
                 type_family_groups_special = {}
             if self.feature_metadata_in is not None:
                 self._feature_metadata_before_post = copy.deepcopy(self.feature_metadata_in)
@@ -1237,7 +1236,7 @@ class AbstractFeatureSelector:
             X_out, self.feature_metadata, self._post_selectors = self._fit_selectors(
                 X=X_out,
                 y=y,
-                n_features=n_features,
+                n_max_features=n_max_features,
                 feature_metadata=self._feature_metadata_before_post,
                 selectors=self._post_selectors,
                 **kwargs,
@@ -1262,6 +1261,7 @@ class AbstractFeatureSelector:
         elif self.verbosity == 2:
             self.print_feature_metadata_info(log_level=15)
             self.print_selector_info(log_level=15)
+
         return X_out
 
     def transform(self, X: DataFrame) -> DataFrame:
@@ -1314,7 +1314,7 @@ class AbstractFeatureSelector:
             X_out.index = X_index
         return X_out
 
-    def _fit_transform(self, X: DataFrame, y: Series, n_features: int, **kwargs) -> (DataFrame, dict):
+    def _fit_transform(self, X: DataFrame, y: Series, n_max_features: int, **kwargs) -> (DataFrame, dict):
         """
         Performs the inner fit_transform logic that is non-generic (specific to the selector implementation).
         When creating a new selector class, this should be implemented.
@@ -1447,7 +1447,7 @@ class AbstractFeatureSelector:
         raise NotImplementedError
 
     def _fit_selectors(
-            self, X, y, n_features, feature_metadata, selectors: list, **kwargs
+            self, X, y, n_max_features, feature_metadata, selectors: list, **kwargs
     ) -> (DataFrame, FeatureMetadata, list):
         """
         Fit a list of AbstractFeatureSelector objects in sequence, with the output of selectors[i] fed as the input to selectors[i+1]
@@ -1457,7 +1457,8 @@ class AbstractFeatureSelector:
         for selector in selectors:
             selector.verbosity = min(self.verbosity, selector.verbosity)
             selector.set_log_prefix(log_prefix=self.log_prefix + "\t", prepend=True)
-            X = selector.fit_transform(X=X, y=y, n_features=n_features, feature_metadata_in=feature_metadata, **kwargs)
+            X = selector.fit_transform(X=X, y=y, n_max_features=n_max_features, feature_metadata_in=feature_metadata,
+                                       **kwargs)
             feature_metadata = selector.feature_metadata
         return X, feature_metadata, selectors
 
@@ -1966,20 +1967,27 @@ class AbstractFeatureSelector:
             Which column dtypes are filtered out of the input data, or how much memory the model is allowed to use.
         """
         default_auxiliary_params = dict(
-            max_memory_usage_ratio=1.0, # Ratio of memory usage allowed by the model. Values > 1.0 have an increased risk of causing OOM errors. Used in memory checks during model training to avoid OOM errors.
+            max_memory_usage_ratio=1.0,
+            # Ratio of memory usage allowed by the model. Values > 1.0 have an increased risk of causing OOM errors. Used in memory checks during model training to avoid OOM errors.
             max_time_limit_ratio=1.0,
             max_time_limit=None,
-            min_time_limit=0, # min time_limit value during fit(). If the provided time_limit is less than this value, it will be replaced by min_time_limit. Occurs after max_time_limit is applied.
+            min_time_limit=0,
+            # min time_limit value during fit(). If the provided time_limit is less than this value, it will be replaced by min_time_limit. Occurs after max_time_limit is applied.
             valid_raw_types=None,  # If a feature's raw type is not in this list, it is pruned.
             valid_special_types=None,  # If a feature has a special type not in this list, it is pruned.
-            ignored_type_group_special=None, # List, drops any features in `self.feature_metadata.type_group_map_special[type]` for type in `ignored_type_group_special`. | Currently undocumented in task.
-            ignored_type_group_raw=None,# List, drops any features in `self.feature_metadata.type_group_map_raw[type]` for type in `ignored_type_group_raw`. | Currently undocumented in task.
+            ignored_type_group_special=None,
+            # List, drops any features in `self.feature_metadata.type_group_map_special[type]` for type in `ignored_type_group_special`. | Currently undocumented in task.
+            ignored_type_group_raw=None,
+            # List, drops any features in `self.feature_metadata.type_group_map_raw[type]` for type in `ignored_type_group_raw`. | Currently undocumented in task.
             # Kwargs for `autogluon.tabular.features.feature_metadata.FeatureMetadata.get_features()`.
             #  Overrides valid_raw_types, valid_special_types, ignored_type_group_special and ignored_type_group_raw. | Currently undocumented in task.
             get_features_kwargs=None,
-            get_features_kwargs_extra=None, # If not None, applies an additional feature filter to the result of get_feature_kwargs. This should be reserved for users and be None by default. | Currently undocumented in task.
-            predict_1_batch_size=None, # If not None, calculates `self.predict_1_time` at end of fit call by predicting on this many rows of data.
-            temperature_scalar=None, # Temperature scaling parameter that is set post-fit if calibrate=True during TabularPredictor.fit() on the model with the best validation score and eval_metric="log_loss".
+            get_features_kwargs_extra=None,
+            # If not None, applies an additional feature filter to the result of get_feature_kwargs. This should be reserved for users and be None by default. | Currently undocumented in task.
+            predict_1_batch_size=None,
+            # If not None, calculates `self.predict_1_time` at end of fit call by predicting on this many rows of data.
+            temperature_scalar=None,
+            # Temperature scaling parameter that is set post-fit if calibrate=True during TabularPredictor.fit() on the model with the best validation score and eval_metric="log_loss".
         )
         return default_auxiliary_params
 
@@ -2316,11 +2324,11 @@ class AbstractFeatureSelector:
                     f"but found {n_rows} rows."
                 )
         if max_features is not None:
-            n_features = X.shape[1]
-            if n_features > max_features:
+            n_max_features = X.shape[1]
+            if n_max_features > max_features:
                 raise AssertionError(
                     f"ag.max_features={max_features} for model '{self.name}', "
-                    f"but found {n_features} features."
+                    f"but found {n_max_features} features."
                 )
 
     # TODO: add model-tag to check if the model can work with `None` random seed?
