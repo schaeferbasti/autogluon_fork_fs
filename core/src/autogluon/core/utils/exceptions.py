@@ -25,6 +25,8 @@ class TimeLimitExceeded(InsufficientTime):
 class NotEnoughMemoryError(AutoGluonException):
     pass
 
+class NumberOfFeaturesError(AutoGluonException):
+    pass
 
 class NoGPUError(AutoGluonException):
     pass
