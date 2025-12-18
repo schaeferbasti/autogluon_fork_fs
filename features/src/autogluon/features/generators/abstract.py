@@ -307,7 +307,7 @@ class AbstractFeatureGenerator:
         # TODO: Add option to return feature_metadata instead to avoid data copy
         #  If so, consider adding validation step to check that X_out matches the feature metadata, error/warning if not
         X_out, type_family_groups_special = self._fit_transform(X[self.features_in], y=y, **kwargs)
-
+        self.features_in = list(X_out.columns)
         type_map_raw = get_type_map_raw(X_out)
         self._feature_metadata_before_post = FeatureMetadata(
             type_map_raw=type_map_raw, type_group_map_special=type_family_groups_special
@@ -975,7 +975,7 @@ class AbstractFeatureSelector:
             problem_type: str | None = None,
             name: str | None = None,
             path: str | None = None,
-            time_limit: float = 300,
+            time_limit: float = None,
             log_prefix="",
             verbosity=2,
     ):
@@ -1097,8 +1097,10 @@ class AbstractFeatureSelector:
         self.fit_transform(X, n_max_features, **kwargs)
 
     def fit_transform(
-            self, X: DataFrame,
-            y: Series = None,
+            self,
+            X: DataFrame,
+            y: Series,
+            model=None,
             n_max_features: int = None,
             time_limit: float = 300,
             feature_metadata_in: FeatureMetadata = None,
@@ -1138,6 +1140,7 @@ class AbstractFeatureSelector:
             start_time = time.time()
             kwargs = self.initialize(time_limit=time_limit, **kwargs)
             kwargs["X"] = X
+            self.model = model
             kwargs["start_time"] = start_time
             self._register_fit_metadata(**kwargs)
             self.validate_fit_resources(**kwargs)
@@ -1147,7 +1150,7 @@ class AbstractFeatureSelector:
                 kwargs["time_limit"] -= time_start_fit - start_time
                 if kwargs["time_limit"] <= 0:
                     logger.warning(
-                        f'\tWarning: FeatureSelection Method has no time left to train, model... (Time Left = {kwargs["time_limit"]:.1f}s)')
+                        f'\tWarning: FeatureSelection Method has no time left to train... (Time Left = {kwargs["time_limit"]:.1f}s)')
                     raise TimeLimitExceeded
             self.validate_fit_args(**kwargs)
             if log_resources:
@@ -1208,7 +1211,7 @@ class AbstractFeatureSelector:
                 self._pre_astype_selector.fit(X)
 
             self.features_in = list(X.columns)
-            X_out, type_family_groups_special = self._fit_transform(X=X[self.features_in], y=y,
+            X_out, type_family_groups_special = self._fit_transform(X=X[self.features_in], y=y, model=self.model,
                                                                     n_max_features=n_max_features, **kwargs)
         except TimeLimitExceeded:
             if n_max_features is None:
@@ -1314,7 +1317,7 @@ class AbstractFeatureSelector:
             X_out.index = X_index
         return X_out
 
-    def _fit_transform(self, X: DataFrame, y: Series, n_max_features: int, **kwargs) -> (DataFrame, dict):
+    def _fit_transform(self, X: DataFrame, y: Series, model, n_max_features: int, **kwargs) -> (DataFrame, dict):
         """
         Performs the inner fit_transform logic that is non-generic (specific to the selector implementation).
         When creating a new selector class, this should be implemented.

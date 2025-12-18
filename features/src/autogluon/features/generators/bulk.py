@@ -389,7 +389,7 @@ class BulkFeatureSelector(AbstractFeatureSelector):
         # FeatureMetadata object based on the original input features that were unused by any feature selector.
         self._feature_metadata_in_unused: FeatureMetadata = None
 
-    def _fit_transform(self, X: DataFrame, n_max_features: int, **kwargs) -> (DataFrame, dict):
+    def _fit_transform(self, X: DataFrame, y, model, n_max_features: int, **kwargs) -> (DataFrame, dict):
         feature_metadata = self.feature_metadata_in
         for i in range(len(self.selectors)):
             self._log(20, f"\tStage {i + 1} Selectors:")
@@ -400,7 +400,7 @@ class BulkFeatureSelector(AbstractFeatureSelector):
                     if selector.verbosity > self.verbosity:
                         selector.verbosity = self.verbosity
                     selector.set_log_prefix(log_prefix=self.log_prefix + "\t\t", prepend=True)
-                    feature_df_list.append(selector.fit_transform(X, n_max_features=n_max_features, feature_metadata_in=feature_metadata, **kwargs))
+                    feature_df_list.append(selector.fit_transform(X, y, model=model, n_max_features=n_max_features, feature_metadata_in=feature_metadata, **kwargs))
                     selector_group_valid.append(selector)
                 else:
                     self._log(
