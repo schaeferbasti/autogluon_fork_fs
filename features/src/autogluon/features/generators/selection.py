@@ -18,6 +18,7 @@ from tabarena.benchmark.feature_selection_methods.ag.select_k_best_f.select_k_be
 
 logger = logging.getLogger(__name__)
 
+
 FEATURE_SELECTION_METHODS = {
     "Boruta": Boruta,
     "LS_Flip": LocalSearchFeatureSelector_Flip,
@@ -42,7 +43,6 @@ class FeatureSelector(AbstractFeatureSelector):
         self._selected_features = None
         self.method_name = enable_feature_selection
 
-
         # Determine which method to use
         if enable_feature_selection is None:
             self._delegate = None
@@ -54,6 +54,7 @@ class FeatureSelector(AbstractFeatureSelector):
                 self._delegate = delegate_class(**kwargs)
         else:
             self._delegate = None
+
 
     def _fit_transform(self, X: DataFrame, y: Series, model, n_max_features: int, **kwargs) -> tuple[DataFrame, dict]:
         self._y = y
