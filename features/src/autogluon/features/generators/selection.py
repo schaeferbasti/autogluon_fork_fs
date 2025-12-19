@@ -1,5 +1,5 @@
 import logging
-
+import time
 from autogluon.common.features.types import R_INT, R_FLOAT, R_OBJECT
 from pandas import DataFrame, Series
 
@@ -25,7 +25,7 @@ FEATURE_SELECTION_METHODS = {
     "Enumeration": EnumerationFeatureSelector,
     "Mafese": MAFESE,
     "MetaFS": MetaFS,
-    "Select_k_Best_F": Select_k_Best_F,
+    "SelectKBest": Select_k_Best_F,
 }
 
 
@@ -68,6 +68,17 @@ class FeatureSelector(AbstractFeatureSelector):
 
         logger.warning(f'\tWarning: FeatureSelection Method {self.method_name} not found... Using default method (SelectKBest using f_regression score function)')
         self._select_best_kwargs = {"score_func": f_regression, "k": n_max_features}
+        if "time_limit" in kwargs and kwargs["time_limit"] is not None:
+            time_start_fit = time.time()
+            kwargs["time_limit"] -= time_start_fit - kwargs["start_time"]
+            if kwargs["time_limit"] <= 0:
+                logger.warning(
+                    f'\tWarning: FeatureSelection Method has no time left to train... (Time Left = {kwargs["time_limit"]:.1f}s)')
+                if n_max_features is not None and len(X.columns) > n_max_features:
+                    X_out = X.sample(n=n_max_features, axis=1)
+                    return X_out
+                else:
+                    return X
         self._select_best = SelectKBest(**self._select_best_kwargs).set_output(transform="pandas")
         X_out = self._transform(X, is_train=True)
         self._selected_features = list(X_out.columns)
