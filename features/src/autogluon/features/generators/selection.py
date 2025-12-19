@@ -5,18 +5,27 @@ from pandas import DataFrame, Series
 
 from .abstract import AbstractFeatureSelector
 
-from sklearn.feature_selection import chi2
+from sklearn.feature_selection import f_regression
 from sklearn.feature_selection import SelectKBest
-from tabarena.benchmark.feature_selection_methods.ag.select_k_best_chi2.select_k_best_chi2 import Select_k_Best_F
 from tabarena.benchmark.feature_selection_methods.ag.boruta.boruta import Boruta
+from tabarena.benchmark.feature_selection_methods.ag.ls_flip.ls_flip import LocalSearchFeatureSelector_Flip
+from tabarena.benchmark.feature_selection_methods.ag.ls_flipswap.ls_flipswap import LocalSearchFeatureSelector_FlipSwap
+from tabarena.benchmark.feature_selection_methods.ag.enumeration.enumeration_fs import EnumerationFeatureSelector
+from tabarena.benchmark.feature_selection_methods.ag.mafese.MAFESE import MAFESE
 from tabarena.benchmark.feature_selection_methods.ag.metafs.MetaFS import MetaFS
+from tabarena.benchmark.feature_selection_methods.ag.select_k_best_f.select_k_best_f import Select_k_Best_F
+
 
 logger = logging.getLogger(__name__)
 
 FEATURE_SELECTION_METHODS = {
-    "Select_k_Best_F": Select_k_Best_F,
     "Boruta": Boruta,
-    "MetaFS": MetaFS
+    "LS_Flip": LocalSearchFeatureSelector_Flip,
+    "LS_FlipSwap": LocalSearchFeatureSelector_FlipSwap,
+    "Enumeration": EnumerationFeatureSelector,
+    "Mafese": MAFESE,
+    "MetaFS": MetaFS,
+    "Select_k_Best_F": Select_k_Best_F,
 }
 
 
@@ -43,16 +52,16 @@ class FeatureSelector(AbstractFeatureSelector):
             self._delegate = None
 
 
-    def _fit_transform(self, X: DataFrame, y: Series, **kwargs) -> tuple[DataFrame, dict]:
+    def _fit_transform(self, X: DataFrame, y: Series, model, **kwargs) -> tuple[DataFrame, dict]:
         self._y = y
 
         if self._delegate is not None:
             self._delegate.feature_metadata_in = self.feature_metadata_in
-            X_out, type_family_groups_special = self._delegate._fit_transform(X, y, **kwargs)
+            X_out, type_family_groups_special = self._delegate._fit_transform(X, y, model, **kwargs)
             self.feature_metadata_in = self._delegate.feature_metadata_in
             return X_out, type_family_groups_special
 
-        self._select_best_kwargs = {"score_func": chi2, "k": 3}
+        self._select_best_kwargs = {"score_func": f_regression, "k": 3}
         self._select_best = SelectKBest(**self._select_best_kwargs).set_output(transform="pandas")
         X_out = self._transform(X, is_train=True)
 
