@@ -54,9 +54,10 @@ class FeatureSelector(AbstractFeatureSelector):
         else:
             self._delegate = None
 
-
-    def _fit_transform(self, X: DataFrame, y: Series, model, n_max_features, **kwargs) -> tuple[DataFrame, dict]:
+    def _fit_transform(self, X: DataFrame, y: Series, model, n_max_features: int, **kwargs) -> tuple[DataFrame, dict]:
         self._y = y
+        self._model = model
+        self._n_max_features = n_max_features
 
         if self._delegate is not None:
             self._delegate.feature_metadata_in = self.feature_metadata_in
@@ -67,11 +68,8 @@ class FeatureSelector(AbstractFeatureSelector):
         self._select_best_kwargs = {"score_func": f_regression, "k": n_max_features}
         self._select_best = SelectKBest(**self._select_best_kwargs).set_output(transform="pandas")
         X_out = self._transform(X, is_train=True)
-
-        selected_features = list(X_out.columns)
-        self.feature_metadata_in.keep_features(selected_features, inplace=True)
+        self._selected_features = list(X_out.columns)
         type_family_groups_special = {}
-
         return X_out, type_family_groups_special
 
 
