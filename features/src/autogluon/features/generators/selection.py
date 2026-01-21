@@ -5,8 +5,6 @@ from pandas import DataFrame, Series
 
 from .abstract import AbstractFeatureSelector
 
-from sklearn.feature_selection import f_regression
-from sklearn.feature_selection import SelectKBest
 from tabarena.benchmark.feature_selection_methods.ag.boruta.boruta import Boruta
 from tabarena.benchmark.feature_selection_methods.ag.ls_flip.ls_flip import LocalSearchFeatureSelector_Flip
 from tabarena.benchmark.feature_selection_methods.ag.ls_flipswap.ls_flipswap import LocalSearchFeatureSelector_FlipSwap
@@ -14,12 +12,15 @@ from tabarena.benchmark.feature_selection_methods.ag.enumeration.enumeration_fs 
 from tabarena.benchmark.feature_selection_methods.ag.mafese.MAFESE import MAFESE
 from tabarena.benchmark.feature_selection_methods.ag.metafs.MetaFS import MetaFS
 from tabarena.benchmark.feature_selection_methods.ag.select_k_best_f.select_k_best_f import Select_k_Best_F
+from tabarena.benchmark.feature_selection_methods.ag.randomfs.RandomFS import RandomFS
+
 
 
 logger = logging.getLogger(__name__)
 
 
 FEATURE_SELECTION_METHODS = {
+    "RandomFS": RandomFS,
     "Boruta": Boruta,
     "LS_Flip": LocalSearchFeatureSelector_Flip,
     "LS_FlipSwap": LocalSearchFeatureSelector_FlipSwap,
@@ -67,8 +68,9 @@ class FeatureSelector(AbstractFeatureSelector):
             self.feature_metadata_in = self._delegate.feature_metadata_in
             return X_out, type_family_groups_special
 
-        logger.warning(f'\tWarning: FeatureSelection Method {self.method_name} not found... Using default method (SelectKBest using f_regression score function)')
-        self._select_best_kwargs = {"score_func": f_regression, "k": n_max_features}
+        logger.warning(f'\tWarning: FeatureSelection Method {self.method_name} not found... Using random feature selection')
+        self._random_fs = RandomFS()
+        # Time limit
         if "time_limit" in kwargs and kwargs["time_limit"] is not None:
             time_start_fit = time.time()
             kwargs["time_limit"] -= time_start_fit - kwargs["start_time"]
@@ -80,8 +82,9 @@ class FeatureSelector(AbstractFeatureSelector):
                     return X_out
                 else:
                     return X
-        self._select_best = SelectKBest(**self._select_best_kwargs).set_output(transform="pandas")
-        X_out = self._transform(X, is_train=True)
+        X_out = self._random_fs.fit_transform(X, y, model, n_max_features, **kwargs)
+        if n_max_features is not None and len(X_out.columns) > n_max_features:
+            X_out = X_out.sample(n=n_max_features, axis=1)
         self._selected_features = list(X_out.columns)
         type_family_groups_special = {}
         return X_out, type_family_groups_special
@@ -92,9 +95,10 @@ class FeatureSelector(AbstractFeatureSelector):
             return self._delegate._transform(X, is_train=is_train)
 
         if is_train:
-            X = self._select_best.fit_transform(X, self._y)
+            X = self._random_fs.fit_transform(X, self._y, self._model, self._n_max_features)
+            self._selected_features = list(X.columns)
         else:
-            X = self._select_best.transform(X)
+            X = X[self._random_fs._selected_features]
         return X
 
 
