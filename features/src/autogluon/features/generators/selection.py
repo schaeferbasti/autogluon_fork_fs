@@ -20,7 +20,7 @@ from tabarena.benchmark.feature_selection_methods.ag.gini.Gini import Gini
 from tabarena.benchmark.feature_selection_methods.ag.relieff.ReliefF import ReliefF
 from tabarena.benchmark.feature_selection_methods.ag.lasso.Lasso import Lasso
 from tabarena.benchmark.feature_selection_methods.ag.chi2.Chi2 import Chi2
-from tabarena.benchmark.feature_selection_methods.ag.laplaceian_score.LaplacianScore import LaplacianScore
+from tabarena.benchmark.feature_selection_methods.ag.laplacian_score.LaplacianScore import LaplacianScore
 from tabarena.benchmark.feature_selection_methods.ag.fisher_score.FisherScore import FisherScore
 from tabarena.benchmark.feature_selection_methods.ag.disr.DISR import DISR
 
