@@ -29,14 +29,14 @@ from tabarena.benchmark.feature_selection_methods.ag.symmetrical_uncertainty.Sym
 from tabarena.benchmark.feature_selection_methods.ag.fcbf.FCBF import FCBF
 from tabarena.benchmark.feature_selection_methods.ag.interact.INTERACT import INTERACT
 from tabarena.benchmark.feature_selection_methods.ag.accuracy.Accuracy import Accuracy
-from tabarena.benchmark.feature_selection_methods.ag.oner.OneR import OneR
+from tabarena.benchmark.feature_selection_methods.ag.one_r.OneR import OneR
 from tabarena.benchmark.feature_selection_methods.ag.relieff.ReliefF import ReliefF
 from tabarena.benchmark.feature_selection_methods.ag.cfs.CFS import CFS
 from tabarena.benchmark.feature_selection_methods.ag.pearson_correlation.PearsonCorrelation import PearsonCorrelation
 from tabarena.benchmark.feature_selection_methods.ag.consistency.Consistency import Consistency
 from tabarena.benchmark.feature_selection_methods.ag.chi2.Chi2 import Chi2
 from tabarena.benchmark.feature_selection_methods.ag.laplacian_score.LaplacianScore import LaplacianScore
-from tabarena.benchmark.feature_selection_methods.ag.spectralfs.SpectralFS import SpectralFS
+from tabarena.benchmark.feature_selection_methods.ag.spectral_fs.Spectral import Spectral
 from tabarena.benchmark.feature_selection_methods.ag.mcfs.MCFS import MCFS
 from tabarena.benchmark.feature_selection_methods.ag.lasso.Lasso import Lasso
 from tabarena.benchmark.feature_selection_methods.ag.group_lasso.GroupLasso import GroupLasso
@@ -46,7 +46,7 @@ from tabarena.benchmark.feature_selection_methods.ag.sfs.SFS import SFS
 from tabarena.benchmark.feature_selection_methods.ag.sbe.SBE import SBE
 from tabarena.benchmark.feature_selection_methods.ag.sffs.SFFS import SFFS
 from tabarena.benchmark.feature_selection_methods.ag.sfbe.SFBE import SFBE
-from tabarena.benchmark.feature_selection_methods.ag.llm_select.LLM_Select import LLM_Select
+from tabarena.benchmark.feature_selection_methods.ag.llm_select.LLMSelect import LLMSelect
 
 from tabarena.benchmark.feature_selection_methods.ag.ls_flip.ls_flip import LocalSearchFeatureSelector_Flip
 from tabarena.benchmark.feature_selection_methods.ag.ls_flipswap.ls_flipswap import LocalSearchFeatureSelector_FlipSwap
@@ -90,7 +90,7 @@ FEATURE_SELECTION_METHODS = {
     "Consistency": Consistency,
     "Chi2": Chi2,
     "LaplacianScore": LaplacianScore,
-    "SpectralFS": SpectralFS,
+    "SpectralFS": Spectral,
     "MCFS": MCFS,
     "Lasso": Lasso,
     "GroupLasso": GroupLasso,
@@ -100,7 +100,7 @@ FEATURE_SELECTION_METHODS = {
     "SBE": SBE,
     "SFFS": SFFS,
     "SFBE": SFBE,
-    "LLM-Select": LLM_Select,
+    "LLM-Select": LLMSelect,
 
     # Other methods
     "LS_Flip": LocalSearchFeatureSelector_Flip,
