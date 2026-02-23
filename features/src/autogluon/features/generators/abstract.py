@@ -1102,7 +1102,7 @@ class AbstractFeatureSelector:
             y: Series,
             model=None,
             n_max_features: int = None,
-            time_limit: float = 300,
+            time_limit: float = 600,
             feature_metadata_in: FeatureMetadata = None,
             log_resources: bool = True,
             log_resources_prefix: str | None = None,
