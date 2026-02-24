@@ -60,7 +60,7 @@ logger = logging.getLogger(__name__)
 FEATURE_SELECTION_METHODS = {
     "Original": Original,
     "RandomFS": Random,
-    "Enumeration": EnumerationFeatureSelector,
+    "Enumeration": Enumeration,
 
     # Chosen Filter Methods
     "tTest": tTest,
