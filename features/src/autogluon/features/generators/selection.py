@@ -5,10 +5,9 @@ from pandas import DataFrame, Series
 
 from .abstract import AbstractFeatureSelector
 
-
-from tabarena.benchmark.feature_selection_methods.ag.randomfs.RandomFS import RandomFS
 from tabarena.benchmark.feature_selection_methods.ag.original.Original import Original
-from tabarena.benchmark.feature_selection_methods.ag.enumeration.enumeration_fs import EnumerationFeatureSelector
+from tabarena.benchmark.feature_selection_methods.ag.random.Random import Random
+from tabarena.benchmark.feature_selection_methods.ag.enumeration.Enumeration import Enumeration
 
 from tabarena.benchmark.feature_selection_methods.ag.t_test.tTest import tTest
 from tabarena.benchmark.feature_selection_methods.ag.anova.ANOVA import ANOVA
@@ -60,7 +59,7 @@ logger = logging.getLogger(__name__)
 
 FEATURE_SELECTION_METHODS = {
     "Original": Original,
-    "RandomFS": RandomFS,
+    "RandomFS": Random,
     "Enumeration": EnumerationFeatureSelector,
 
     # Chosen Filter Methods
