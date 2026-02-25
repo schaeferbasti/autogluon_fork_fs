@@ -149,7 +149,7 @@ class FeatureSelector(AbstractFeatureSelector):
             return X_out, type_family_groups_special
 
         logger.warning(f'\tWarning: FeatureSelection Method {self.method_name} not found... Using random feature selection')
-        self._random_fs = RandomFS()
+        self._random_fs = Random()
         # Time limit
         if "time_limit" in kwargs and kwargs["time_limit"] is not None:
             time_start_fit = time.time()
