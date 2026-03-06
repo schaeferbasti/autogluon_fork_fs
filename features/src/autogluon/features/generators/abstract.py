@@ -1157,10 +1157,7 @@ class AbstractFeatureSelector:
                 num_cpus = kwargs.get("num_cpus", None)
                 num_gpus = kwargs.get("num_gpus", None)
                 approx_mem_size_req_gb = approx_mem_size_req / (1024 ** 3) if approx_mem_size_req is not None else None
-                print("Approx. Required Memory in GB: " + str(approx_mem_size_req_gb))
                 available_mem_gb = available_mem / (1024 ** 3) if available_mem is not None else None
-                print("Available Memory in GB: " + str(available_mem_gb))
-
                 if log_resources_prefix is None:
                     log_resources_prefix = ""
                 msg = f"\t{log_resources_prefix}Fitting with cpus={num_cpus}, gpus={num_gpus}"
